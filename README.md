@@ -1,25 +1,44 @@
-# Nantes Traffic MCP
+# Naolib MCP
 
-An MCP server to get real-time traffic information from Naolib (Nantes Métropole) using the SIRI protocol.
+Un serveur MCP pour obtenir les informations de trafic en temps réel de Naolib (Nantes Métropole) via le protocole SIRI.
 
-## Features
-- Real-time stop monitoring (arrivals/departures)
-- Situation exchange (traffic alerts and incidents)
-- Internal caching to optimize API calls and respect SIRI constraints
+## Fonctionnalités
+- Suivi des arrêts en temps réel (arrivées/départs).
+- Échanges de situations (alertes trafic et perturbations).
+- Cache interne pour optimiser les appels API et respecter les contraintes du protocole SIRI.
 
 ## Installation
-Install dependencies:
+Installez les dépendances :
 ```bash
 pip install mcp httpx
 ```
 
 ## Configuration
-Set the following environment variables:
-- `NAOLIB_API_KEY`: Your API key from the Naolib/Okina portal.
-- `NAOLIB_BASE_URL`: (Optional) Defaults to `https://api.okina.fr`.
+L'utilisation d'une clé API est **facultative**, mais fortement recommandée. Sans clé, vous serez soumis à des limitations plus strictes sur la fréquence des appels.
 
-## Usage
-Run via MCP:
+Variables d'environnement :
+- `NAOLIB_API_KEY`: Votre clé API obtenue sur le portail Naolib/Okina.
+- `NAOLIB_BASE_URL`: (Optionnel) Par défaut `https://api.okina.fr`.
+
+## Intégration (claude_desktop_config.json)
+Voici comment ajouter ce serveur à votre configuration MCP :
+
+```json
+{
+  "mcpServers": {
+    "naolib-traffic": {
+      "command": "python",
+      "args": ["/home/user/naolib-mcp/server.py"],
+      "env": {
+        "NAOLIB_API_KEY": "VOTRE_CLE_API_ICI"
+      }
+    }
+  }
+}
+```
+
+## Utilisation
+Lancer le serveur via MCP :
 ```bash
 mcp run server.py
 ```
