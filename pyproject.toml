@@ -1,7 +1,7 @@
 [project]
 name = "naolib-mcp"
 version = "0.1.0"
-description = "MCP server for real-time traffic info from Naolib (Nantes)"
+description = "Serveur MCP pour les informations de trafic en temps réel de Naolib (Nantes)"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
