@@ -1,19 +1,35 @@
-name: Publish PyPI
+name: Publish to PyPI
+
 on:
   release:
     types: [published]
 
 jobs:
-  publish:
+  pypi-publish:
+    name: Build and publish to PyPI
     runs-on: ubuntu-latest
+    
     permissions:
       id-token: write
       contents: read
+
     steps:
-      - uses: actions/checkout@v4
-      - name: Install uv
-        uses: astral-sh/setup-uv@v1
-      - name: Build and Publish
+      - name: Checkout du code
+        uses: actions/checkout@v4
+
+      - name: Configuration de Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Installation de l'outil de build
         run: |
-          uv build
-          uv publish
+          python -m pip install --upgrade pip
+          pip install build
+
+      - name: Build du package (sdist et wheel)
+        run: python -m build
+
+      - name: Publication sur PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        
