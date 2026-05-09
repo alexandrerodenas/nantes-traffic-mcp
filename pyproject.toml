@@ -1,0 +1,17 @@
+[project]
+name = "naolib-mcp"
+version = "0.1.0"
+description = "MCP server for real-time traffic info from Naolib (Nantes)"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "mcp",
+    "httpx",
+]
+
+[project.scripts]
+naolib-mcp = "naolib_mcp.server:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
