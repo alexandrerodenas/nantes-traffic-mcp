@@ -1,35 +1,17 @@
-name: Publish to PyPI
+[project]
+name = "naolib-mcp"
+version = "0.1.0"
+description = "Serveur MCP pour les informations de trafic en temps réel de Naolib (Nantes)"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "mcp",
+    "httpx",
+]
 
-on:
-  release:
-    types: [published]
+[project.scripts]
+naolib-mcp = "naolib_mcp.server:main"
 
-jobs:
-  pypi-publish:
-    name: Build and publish to PyPI
-    runs-on: ubuntu-latest
-    
-    permissions:
-      id-token: write
-      contents: read
-
-    steps:
-      - name: Checkout du code
-        uses: actions/checkout@v4
-
-      - name: Configuration de Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.10"
-
-      - name: Installation de l'outil de build
-        run: |
-          python -m pip install --upgrade pip
-          pip install build
-
-      - name: Build du package (sdist et wheel)
-        run: python -m build
-
-      - name: Publication sur PyPI
-        uses: pypa/gh-action-pypi-publish@release/v1
-        
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
