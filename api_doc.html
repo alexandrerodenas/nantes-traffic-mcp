@@ -1,0 +1,34 @@
+<!--
+
+    Copyright (C) 2015 The Gravitee team (http://gravitee.io)
+
+    Licensed under the Apache License, Version 2.0 (the "License");
+    you may not use this file except in compliance with the License.
+    You may obtain a copy of the License at
+
+            http://www.apache.org/licenses/LICENSE-2.0
+
+    Unless required by applicable law or agreed to in writing, software
+    distributed under the License is distributed on an "AS IS" BASIS,
+    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+    See the License for the specific language governing permissions and
+    limitations under the License.
+
+--><!DOCTYPE html><html lang="en"><head>
+    <meta charset="utf-8">
+    <title>Gravitee.io Portail</title>
+    <base href="/">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <script src="webcomponents/webcomponents-loader.js"></script>
+    <script src="@asciidoctor/asciidoctor.js"></script>
+    <script>
+      // Preload the asciidoctor dependencies before ui-component because asciidoctor not work with asynchronous esm import (or something like that)
+      window._gvAsciidoctor = Asciidoctor();
+    </script>
+  <style>@font-face{font-family:IBM Plex Sans;font-style:normal;font-display:swap;font-weight:100;src:url(ibm-plex-sans-latin-100-normal.77a6ebc8e89964be.woff2) format("woff2"),url(ibm-plex-sans-latin-100-normal.b0bc5ecba0ed4a1b.woff) format("woff")}@font-face{font-family:IBM Plex Sans;font-style:normal;font-display:swap;font-weight:200;src:url(ibm-plex-sans-latin-200-normal.1b855a3551502062.woff2) format("woff2"),url(ibm-plex-sans-latin-200-normal.cd1005705e65f76a.woff) format("woff")}@font-face{font-family:IBM Plex Sans;font-style:normal;font-display:swap;font-weight:300;src:url(ibm-plex-sans-latin-300-normal.f09407e56df0363a.woff2) format("woff2"),url(ibm-plex-sans-latin-300-normal.0dc0dff6b8d397f0.woff) format("woff")}@font-face{font-family:IBM Plex Sans;font-style:normal;font-display:swap;font-weight:400;src:url(ibm-plex-sans-latin-400-normal.cca38a3ac5ce657a.woff2) format("woff2"),url(ibm-plex-sans-latin-400-normal.32295235a4d6a4d8.woff) format("woff")}@font-face{font-family:IBM Plex Sans;font-style:normal;font-display:swap;font-weight:500;src:url(ibm-plex-sans-latin-500-normal.f805c5d42f42ed2a.woff2) format("woff2"),url(ibm-plex-sans-latin-500-normal.6a5ba663baa35a8f.woff) format("woff")}@font-face{font-family:IBM Plex Sans;font-style:normal;font-display:swap;font-weight:600;src:url(ibm-plex-sans-latin-600-normal.a7af6c8a0e2ce061.woff2) format("woff2"),url(ibm-plex-sans-latin-600-normal.7061898e14a670a5.woff) format("woff")}@font-face{font-family:IBM Plex Sans;font-style:normal;font-display:swap;font-weight:700;src:url(ibm-plex-sans-latin-700-normal.05088377835521ee.woff2) format("woff2"),url(ibm-plex-sans-latin-700-normal.4df2650768214fa0.woff) format("woff")}:root{--gv-theme-color-darker:#383E3F;--gv-theme-color-dark:#28444F;--gv-theme-color:#5A7684;--gv-theme-color-light:#86c3d0;--gv-theme-color-danger:#FF5722;--gv-theme-color-error-dark:#d32f2f;--gv-theme-color-error:#f44336;--gv-theme-color-error-light:#e57373;--gv-theme-color-info-dark:#1976d2;--gv-theme-color-info:#2196f3;--gv-theme-color-info-light:#64b5f6;--gv-theme-color-success-dark:#388e3c;--gv-theme-color-success:#4caf50;--gv-theme-color-success-light:#81c784;--gv-theme-color-warning-dark:#f57c00;--gv-theme-color-warning:#ff9800;--gv-theme-color-warning-light:#ffb74d;--gv-theme-neutral-color-darkest:#000000;--gv-theme-neutral-color-darker:#BFBFBF;--gv-theme-neutral-color-dark:#D9D9D9;--gv-theme-neutral-color:#F5F5F5;--gv-theme-neutral-color-light:#EFEFEF;--gv-theme-neutral-color-lighter:#FAFAFA;--gv-theme-neutral-color-lightest:#FFFFFF;--gv-theme-font-color-dark:#262626;--gv-theme-font-color-light:#FFFFFF;--gv-theme-font-family:"IBM Plex Sans", "Helvetica Neue", Arial, sans-serif;--gv-theme-font-size-xs:10px;--gv-theme-font-size-s:12px;--gv-theme-font-size-m:14px;--gv-theme-font-size-l:16px;--gv-theme-font-size-xl:26px;--gv-theme-font-size-xxl:30px;--gv-theme-homepage-background-height:400px;--gv-theme-skeleton-color:#BFBFBF;--gv-theme-homepage-background-color:#5A7684;--gv-theme-homepage-background-image:none;--gv-theme-logo:url(/images/gravitee-logo-cyan.svg);--gv-theme-optional-logo:url(/images/gravitee-logo-white.svg);--gv-theme-favicon:/images/gravitee-favicon.png}:root{font-family:IBM Plex Sans,Helvetica Neue,Arial,sans-serif;font-family:var(--gv-theme-font-family);font-size:14px;font-size:var(--gv-theme-font-size-m);color:#262626;color:var(--gv-theme-font-color-dark);--gv-theme-layout--pb:1rem;--gv-theme-layout--pl:8rem;--gv-theme-layout--pr:8rem;--gv-theme-layout--pt:1rem;--gv-theme-layout-footer-bottom--h:150px;--gv-theme-layout-footer-top--h:338px;--gv-theme-layout-header--h:3.8rem;--gv-theme-page--pb:4rem;--gv-theme-page--pt:4rem}@media screen and (max-width: 1920px){:root{--gv-theme-layout--pr:250px;--gv-theme-layout--pl:250px}}@media screen and (max-width: 1680px){:root{--gv-theme-layout--pr:130px;--gv-theme-layout--pl:130px}}@media screen and (max-width: 1600px){:root{--gv-theme-layout--pr:90px;--gv-theme-layout--pl:90px}}@media screen and (max-width: 1440px){:root{--gv-theme-layout--pr:10px;--gv-theme-layout--pl:10px}}@media screen and (max-width: 1366px){:root{--gv-theme-layout--pr:8px;--gv-theme-layout--pl:8px}}@media only screen and (max-device-width: 1280px){:root{--gv-theme-layout--pr:5px;--gv-theme-layout--pl:5px}}@-webkit-keyframes skeleton-pulse{0%{opacity:.85}to{opacity:.45}}body{margin:0}</style><link rel="stylesheet" href="styles.952ef07e6a1dd479.css" media="print" onload="this.media='all'"><noscript><link rel="stylesheet" href="styles.952ef07e6a1dd479.css"></noscript><style>@-webkit-keyframes rotation{to{transform:rotate(1turn)}}@-webkit-keyframes blinker{50%{opacity:0}}@-webkit-keyframes shake{10%,90%{transform:translate(-1px)}20%,80%{transform:translate(2px)}30%,50%,70%{transform:translate(-4px)}40%,60%{transform:translate(4px)}}@-webkit-keyframes scaleUp{0%{opacity:0;transform:scale(.8)}to{opacity:1;transform:scale(1)}}</style><link rel="stylesheet" href="swagger-ui.18b50d87abcf4eca.css" media="print" onload="this.media='all'"><noscript><link rel="stylesheet" href="swagger-ui.18b50d87abcf4eca.css"></noscript></head>
+  <body>
+    <gv-spinner id="loader"></gv-spinner>
+    <app-root></app-root>
+  <script src="runtime.127cb983685c4a16.js" type="module"></script><script src="polyfills.5ad62d53b9c82aaa.js" type="module"></script><script src="scripts.cf159bcad8664349.js" defer></script><script src="redoc.15ce09a4d6923ada.js" defer></script><script src="main.fc081bdb7f7f4fe3.js" type="module"></script>
+
+</body></html>
