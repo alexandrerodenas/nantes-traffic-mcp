@@ -13,9 +13,9 @@ mcp = FastMCP("naolib-traffic")
 
 API_KEY = os.getenv("NAOLIB_API_KEY", "YOUR_API_KEY_HERE")
 BASE_URL = os.getenv("NAOLIB_BASE_URL", "https://api.okina.fr")
-# Corrected: Using the exact dataset ID from the API response
-NETEX_DATASET_ID = "244400404_arrets_transports_commun_naolib_nantes_metropole_netex"
-NETEX_API_URL = f"https://data.nantesmetropole.fr/api/explore/v2.1/catalog/datasets/{NETEX_DATASET_ID}/records?limit=1"
+NETEX_URL = "https://data.nantesmetropole.fr/explore/dataset/244400404_offre_transports_commun_naolib_nantes_metropole_netex/download?format=json"
+# The JSON from data.nantesmetropole actually gives a link to the ZIP
+ZIP_URL = "https://data.nantesmetropole.fr/explore/dataset/244400404_offre_transports_commun_naolib_nantes_metropole_netex/download?format=zip"
 
 CACHE_DIR = os.path.expanduser("~/.cache/naolib-mcp")
 STOPS_CACHE_PATH = os.path.join(CACHE_DIR, "stops_index.json")
@@ -29,7 +29,7 @@ CACHE_TTL = 30
 STOPS_INDEX: Dict[str, str] = {}
 
 def sync_stops():
-    \"\"\"Downloads NeTEx ZIP via the Explore API and indexes stop names to IDs.\"\"\"
+    """Downloads NeTEx ZIP and indexes stop names to IDs."""
     global STOPS_INDEX
     try:
         # Check if cache is recent (24h)
@@ -40,53 +40,33 @@ def sync_stops():
                     STOPS_INDEX = json.load(f)
                 return
 
-        # Get the file metadata via the Explore API
-        with httpx.Client(timeout=15.0) as client:
-            response = client.get(NETEX_API_URL)
+        # Sync process
+        zip_path = os.path.join(CACHE_DIR, "netex.zip")
+        with httpx.Client(follow_redirects=True) as client:
+            response = client.get(ZIP_URL)
             response.raise_for_status()
-            data = response.json()
-            
-            # Extract the download URL from the API response
-            if not data.get("results"):
-                raise ValueError("No results from Explore API")
-                
-            file_info = data["results"][0].get("fichier", {})
-            download_url = file_info.get("url")
-            if not download_url:
-                raise ValueError("No download URL in file info")
-            
-            # Download the ZIP file
-            zip_path = os.path.join(CACHE_DIR, "netex.zip")
-            zip_response = client.get(download_url)
-            zip_response.raise_for_status()
             with open(zip_path, "wb") as f:
-                f.write(zip_response.content)
+                f.write(response.content)
         
-        # Extract and parse the XML
         with zipfile.ZipFile(zip_path, 'r') as zip_ref:
             zip_ref.extractall(CACHE_DIR)
+            # Find the XML file inside the zip
             xml_files = [f for f in zip_ref.namelist() if f.endswith('.xml')]
             if not xml_files:
                 return
 
+            # Parse the first XML found (usually the main offer file)
             xml_path = os.path.join(CACHE_DIR, xml_files[0])
             tree = ET.parse(xml_path)
             root = tree.getroot()
             
-            # Build the stop index: Name -> StopPoint ID
+            # NeTEx namespaces can be tricky. We look for StopPoint elements.
+            # This is a simplified parser that looks for tags containing 'StopPoint'
             new_index = {}
             for elem in root.iter():
-                # Look for StopPoint elements (namespace-agnostic)
                 if 'StopPoint' in elem.tag:
-                    # Get the stop ID (could be in 'id' or 'privateCode' attribute)
-                    stop_id = elem.get('id') or elem.get('privateCode')
-                    if not stop_id:
-                        # Sometimes it's in a child element
-                        id_elem = elem.find('.//{*}id')
-                        if id_elem is not None and id_elem.text:
-                            stop_id = id_elem.text
-                    
-                    # Get the stop name
+                    stop_id = elem.get('id') or elem.get('SiriRef')
+                    # Look for name in children
                     name_elem = elem.find('.//{*}Name')
                     if stop_id and name_elem is not None and name_elem.text:
                         new_index[name_elem.text.strip()] = stop_id
@@ -96,7 +76,6 @@ def sync_stops():
                 json.dump(STOPS_INDEX, f, ensure_ascii=False)
     except Exception as e:
         print(f"Stop sync error: {e}")
-        # If sync fails, we might have an old cache - that's better than nothing
 
 # Initialize sync at startup
 sync_stops()
@@ -122,12 +101,12 @@ def get_with_cache(endpoint: str, params: Dict[str, Any]) -> Any:
 
 @mcp.tool()
 def search_stop(query: str) -> str:
-    \"\"\"Search for a stop by name and return its ID. Useful for finding the correct StopPoint ID before monitoring.\"\"\"
+    """Search for a stop by name and return its ID. Useful for finding the correct StopPoint ID before monitoring."""
     if not STOPS_INDEX:
         return "Stop index is empty. Please wait for synchronization."
     
     names = list(STOPS_INDEX.keys())
-    matches = get_close_matches(query, names, n=5, cutoff=0.5)
+    matches = get_close_matches(query, names, n=3, cutoff=0.6)
     
     if not matches:
         return f"No stops found matching '{query}'."
@@ -137,7 +116,7 @@ def search_stop(query: str) -> str:
 
 @mcp.tool()
 def get_stop_monitoring(stop_id: str) -> str:
-    \"\"\"Get real-time arrivals and departures for a specific stop. Example stop_id: 'StopPoint:S123' or just 'S123'.\"\"\"
+    """Get real-time arrivals and departures for a specific stop. Example stop_id: 'StopPoint:S123' la request doit être précédée de 'StopPoint:'"""
     if not stop_id.startswith("StopPoint:"):
         stop_id = f"StopPoint:{stop_id}"
         
@@ -147,13 +126,13 @@ def get_stop_monitoring(stop_id: str) -> str:
 
 @mcp.tool()
 def get_traffic_alerts() -> str:
-    \"\"\"Get real-time traffic alerts and disruptions from the Situation Exchange service.\"\"\"
+    """Get real-time traffic alerts and disruptions from the Situation Exchange service."""
     endpoint = "/siri/2.0/situation-exchange.json"
     return str(get_with_cache(endpoint, {}))
 
 @mcp.tool()
 def check_api_status() -> str:
-    \"\"\"Verify the availability of the Naolib SIRI services.\"\"\"
+    """Verify the availability of the Naolib SIRI services."""
     try:
         with httpx.Client(timeout=5.0) as client:
             response = client.get(f"{BASE_URL}/siri/2.0/check-status.json", params={"api-key": API_KEY})
