@@ -40,7 +40,7 @@ FALLBACK_STOPS = {
 }
 
 def sync_stops():
-    """Downloads NeTEx ZIP and indexes stop names to IDs."""
+    """Downloads NeTEx data and indexes stop names to IDs."""
     global STOPS_INDEX
     try:
         # Check if cache is recent (24h)
@@ -51,55 +51,71 @@ def sync_stops():
                     STOPS_INDEX = json.load(f)
                 return
 
-        # Try to sync from NeTEx data
+        # Try to sync from ZIP export with correct parameters
         zip_path = os.path.join(CACHE_DIR, "stops.zip")
-        zip_url = "https://data.nantesmetropole.fr/api/explore/v2.1/catalog/datasets/244400404_arrets_transports_commun_naolib_nantes_metropole_netex/exports/zip"
+        # Use the URL format that we know works
+        zip_url = "https://data.nantesmetropole.fr/api/explore/v2.1/catalog/datasets/244400404_arrets_transports_commun_naolib_nantes_metropole_netex/files/2b04dd7ce0d9da317089d97b96b20ba4?format=zip"
         
         try:
-            with httpx.Client(follow_redirects=True, timeout=30.0) as client:
+            print(f"Attempting to download NeTEx data from: {zip_url}")
+            with httpx.Client(follow_redirects=True, timeout=60.0) as client:
                 response = client.get(zip_url)
                 response.raise_for_status()
                 with open(zip_path, "wb") as f:
                     f.write(response.content)
             
+            print(f"Downloaded ZIP file, size: {os.path.getsize(zip_path)} bytes")
+            
             with zipfile.ZipFile(zip_path, 'r') as zip_ref:
                 zip_ref.extractall(CACHE_DIR)
                 xml_files = [f for f in zip_ref.namelist() if f.endswith('.xml')]
-                stops_xml = None
-                for f in xml_files:
-                    if 'arret' in f.lower() or 'stop' in f.lower():
-                        stops_xml = f
-                        break
+                print(f"Found XML files: {xml_files}")
+                stops_xml = next((f for f in xml_files if 'arret' in f.lower() or 'stop' in f.lower()), None)
                 if not stops_xml and xml_files:
                     stops_xml = xml_files[0]
                 
                 if stops_xml:
-                    xml_path = os.path.join(CACHE_DIR, stops_xml)
-                    tree = ET.parse(xml_path)
+                    print(f"Parsing XML file: {stops_xml}")
+                    tree = ET.parse(os.path.join(CACHE_DIR, stops_xml))
                     root = tree.getroot()
-                    
                     new_index = {}
                     for elem in root.iter():
-                        if 'StopPoint' in elem.tag:
-                            stop_id = elem.get('id') or elem.get('SiriRef')
-                            name_elem = elem.find('.//{*}Name')
+                        # Look for StopPlace or Quay elements (the actual stop definitions in NeTEx)
+                        if elem.tag.endswith('StopPlace') or elem.tag.endswith('Quay'):
+                            stop_id = elem.get('id')
+                            # Try multiple ways to find the name element
+                            name_elem = None
+                            # Try standard Netex name element
+                            for name_path in ['.//{http://www.netex.org.uk/netex}Name', './/{http://www.siri.org.uk/siri}Name', './/Name']:
+                                name_elem = elem.find(name_path)
+                                if name_elem is not None:
+                                    break
+                            
                             if stop_id and name_elem is not None and name_elem.text:
-                                new_index[name_elem.text.strip()] = stop_id
+                                stop_name = name_elem.text.strip()
+                                # Ensure ID has the StopPoint prefix if not already present
+                                if not stop_id.startswith('StopPoint:'):
+                                    stop_id = f'StopPoint:{stop_id}'
+                                new_index[stop_name] = stop_id
                     
-                    if new_index:  # Only update if we got real data
+                    if new_index:
+                        print(f"Successfully parsed {len(new_index)} stops from NeTEx data")
                         STOPS_INDEX = new_index
                         with open(STOPS_CACHE_PATH, 'w', encoding='utf-8') as f:
                             json.dump(STOPS_INDEX, f, ensure_ascii=False)
                         return
+                    else:
+                        print("No stop data found in XML")
+                        
         except Exception as zip_error:
-            print(f"NeTEx sync failed: {zip_error}")
-        
-        # If NeTEx sync failed, use fallback data
+            print(f"NeTEx ZIP sync failed: {zip_error}")
+
+        # If ZIP method failed, use fallback data
         print("Using fallback stop data for demonstration")
         STOPS_INDEX = FALLBACK_STOPS.copy()
         with open(STOPS_CACHE_PATH, 'w', encoding='utf-8') as f:
             json.dump(STOPS_INDEX, f, ensure_ascii=False)
-            
+
     except Exception as e:
         print(f"Stop sync error: {e}")
         # Last resort: use fallback
