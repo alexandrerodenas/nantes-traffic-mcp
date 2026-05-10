@@ -13,9 +13,9 @@ mcp = FastMCP("naolib-traffic")
 
 API_KEY = os.getenv("NAOLIB_API_KEY", "YOUR_API_KEY_HERE")
 BASE_URL = os.getenv("NAOLIB_BASE_URL", "https://api.okina.fr")
-NETEX_URL = "https://data.nantesmetropole.fr/explore/dataset/244400404_offre_transports_commun_naolib_nantes_metropole_netex/download?format=json"
+NETEX_URL = "https://data.nantesmetropole.fr/explore/dataset/244400404_offre_transports_commun_naolib_nantes_metropole_netex/download?format=jsonNETEX_URL = "https://data.nantesmetropole.fr/explore/dataset/244400404_offre_transports_commun_naolib_nantes_metropole_netex/download?format=json"timezone=Europe/BerlinNETEX_URL = "https://data.nantesmetropole.fr/explore/dataset/244400404_offre_transports_commun_naolib_nantes_metropole_netex/download?format=json"lang=fr"
 # The JSON from data.nantesmetropole actually gives a link to the ZIP
-ZIP_URL = "https://data.nantesmetropole.fr/explore/dataset/244400404_arrets_transports_commun_naolib_nantes_metropole_netex/download?format=zip"
+ZIP_URL = "https://data.nantesmetropole.fr/explore/dataset/244400404_arrets_transports_commun_naolib_nantes_metropole_netex/download?format=zipZIP_URL = "https://data.nantesmetropole.fr/explore/dataset/244400404_arrets_transports_commun_naolib_nantes_metropole_netex/download?format=zip"timezone=Europe/BerlinZIP_URL = "https://data.nantesmetropole.fr/explore/dataset/244400404_arrets_transports_commun_naolib_nantes_metropole_netex/download?format=zip"lang=fr"
 
 CACHE_DIR = os.path.expanduser("~/.cache/naolib-mcp")
 STOPS_CACHE_PATH = os.path.join(CACHE_DIR, "stops_index.json")
