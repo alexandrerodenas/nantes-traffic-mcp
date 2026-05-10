@@ -1,0 +1,3 @@
+{
+  "error": "Value of parameter 'format' is not an accepted value ('json', 'jsonp', 'csv', 'geojson', 'geojsonp', 'xls', 'shp', 'gpx', 'kml', 'ov2', 'geopoints', 'citadel', 'ics', 'dcat_ap_ch')"
+}
