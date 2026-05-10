@@ -15,7 +15,7 @@ API_KEY = os.getenv("NAOLIB_API_KEY", "YOUR_API_KEY_HERE")
 BASE_URL = os.getenv("NAOLIB_BASE_URL", "https://api.okina.fr")
 NETEX_URL = "https://data.nantesmetropole.fr/explore/dataset/244400404_offre_transports_commun_naolib_nantes_metropole_netex/download?format=json"
 # The JSON from data.nantesmetropole actually gives a link to the ZIP
-ZIP_URL = "https://data.nantesmetropole.fr/explore/dataset/244400404_arrets_transports_commun_naolib_nantes_metropole_netex/download?format=zip"
+ZIP_URL = "https://fr.ftp.opendatasoft.com/nantesmetropole/Documentation.zip"
 
 CACHE_DIR = os.path.expanduser("~/.cache/naolib-mcp")
 STOPS_CACHE_PATH = os.path.join(CACHE_DIR, "stops_index.json")
@@ -41,7 +41,7 @@ def sync_stops():
                 return
 
         # Sync process
-        zip_path = os.path.join(CACHE_DIR, "netex.zip")
+        zip_path = os.path.join(CACHE_DIR, "documentation.zip")
         with httpx.Client(follow_redirects=True) as client:
             response = client.get(ZIP_URL)
             response.raise_for_status()
@@ -50,13 +50,22 @@ def sync_stops():
         
         with zipfile.ZipFile(zip_path, 'r') as zip_ref:
             zip_ref.extractall(CACHE_DIR)
-            # Find the XML file inside the zip
+            # Find the XML file for stops. We look for a file that contains 'arret' or 'stop' in the name (case-insensitive)
             xml_files = [f for f in zip_ref.namelist() if f.endswith('.xml')]
-            if not xml_files:
+            stops_xml = None
+            for f in xml_files:
+                if 'arret' in f.lower() or 'stop' in f.lower():
+                    stops_xml = f
+                    break
+            if not stops_xml and xml_files:
+                stops_xml = xml_files[0]  # fall back to first XML
+            
+            if not stops_xml:
+                print("No XML file found in the ZIP.")
                 return
 
-            # Parse the first XML found (usually the main offer file)
-            xml_path = os.path.join(CACHE_DIR, xml_files[0])
+            # Parse the XML file
+            xml_path = os.path.join(CACHE_DIR, stops_xml)
             tree = ET.parse(xml_path)
             root = tree.getroot()
             
