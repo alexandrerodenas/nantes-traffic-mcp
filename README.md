@@ -28,14 +28,18 @@ Si vous avez installé le package via PyPI, utilisez la commande `naolib-mcp` :
 ```json
 {
   "mcpServers": {
-    "naolib-traffic": {
-      "command": "naolib-mcp",
+    "naolib-mcp": {
+      "command": "uvx",
+      "args": [
+        "naolib-mcp"
+      ],
       "env": {
-        "NAOLIB_API_KEY": "VOTRE_CLE_API_ICI"
+        "NAOLIB_API_KEY": "ta_cle_api_ici"
       }
     }
   }
 }
+
 ```
 
 ## Utilisation
