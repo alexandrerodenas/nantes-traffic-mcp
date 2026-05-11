@@ -10,7 +10,7 @@ Un serveur MCP pour obtenir les informations de trafic en temps réel de Naolib 
 - **Cache Intelligent** : Optimisation des appels API avec un cache interne pour réduire la latence.
 
 ## Installation via PyPI
-Une fois le package publié, vous pouvez l'installer simplement avec :
+Vous pouvez l'installer simplement avec :
 ```bash
 pip install naolib-mcp
 ```
