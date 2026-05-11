@@ -97,26 +97,54 @@ def sync_stops():
                 if stops_xml:
                     tree = ET.parse(os.path.join(CACHE_DIR, stops_xml))
                     root = tree.getroot()
+                    netex_ns = "http://www.netex.org.uk/netex"
                     new_index: Dict[str, str] = {}
-                    for elem in root.iter():
-                        if elem.tag.endswith("StopPlace") or elem.tag.endswith("Quay"):
-                            stop_id = elem.get("id")
-                            name_elem = None
-                            for ns_uri in [
-                                "http://www.netex.org.uk/netex",
-                                "http://www.siri.org.uk/siri",
-                            ]:
-                                name_elem = elem.find(f".//{{{ns_uri}}}Name")
-                                if name_elem is not None:
-                                    break
-                            if not name_elem:
-                                name_elem = elem.find(".//Name")
 
-                            if stop_id and name_elem is not None and name_elem.text:
-                                stop_name = name_elem.text.strip()
-                                if not stop_id.startswith("StopPoint:"):
-                                    stop_id = f"StopPoint:{stop_id}"
-                                new_index[stop_name] = stop_id
+                    def local_tag(elem: ET.Element) -> str:
+                        return elem.tag.split("}")[-1] if "}" in elem.tag else elem.tag
+
+                    # Build a Quay ID -> Name map
+                    quay_names: Dict[str, str] = {}
+                    for quay in root.iter():
+                        if local_tag(quay) == "Quay":
+                            quay_id = quay.get("id")
+                            name_el = quay.find(f"{{{netex_ns}}}Name")
+                            if name_el is None:
+                                name_el = quay.find("Name")
+                            quay_names[quay_id] = (
+                                name_el.text.strip() if name_el is not None and name_el.text else ""
+                            )
+
+                    # Process StopPlace entries (primary stop names)
+                    for sp in root.iter():
+                        if local_tag(sp) != "StopPlace":
+                            continue
+                        stop_id = sp.get("id")
+                        # Try direct Name child first
+                        name_el = sp.find(f"{{{netex_ns}}}Name")
+                        # Then keyList imported-name
+                        if name_el is None or not (name_el.text and name_el.text.strip()):
+                            keylist = sp.find(f"{{{netex_ns}}}keyList")
+                            if keylist is not None:
+                                for kv in keylist:
+                                    if kv.findtext("Key") == "imported-name":
+                                        name_el = kv.find("Value")
+                                        break
+                        stop_name = (
+                            name_el.text.strip()
+                            if name_el is not None and name_el.text
+                            else None
+                        )
+                        if stop_id and stop_name:
+                            # Build SIRI MonitoringRef from Quay ID
+                            # Prefer first QuayRef child, fall back to StopPlace id
+                            quay_ref = sp.find(f"{{{netex_ns}}}quays/{{{netex_ns}}}QuayRef")
+                            if quay_ref is not None and quay_ref.get("ref"):
+                                # Store raw Quay ID (SIRI uses raw IDs, no StopPoint: prefix)
+                                siri_ref = quay_ref.get("ref")
+                            else:
+                                siri_ref = stop_id
+                            new_index[stop_name] = siri_ref
 
                     if new_index:
                         print(f"Parsed {len(new_index)} stops from NeTEx data")
@@ -178,12 +206,9 @@ def build_stop_monitoring_request_xml(
     <Siri><ServiceRequest><RequestorRef>...<StopMonitoringRequest>...</ServiceRequest></Siri>
 
     Args:
-        stop_id: StopPoint identifier (with or without StopPoint: prefix).
+        stop_id: Raw stop ID (e.g. 'FR_NAOLIB:Quay:2687'). No StopPoint: prefix.
         maximum_visits: Maximum number of stop visits to return (default: 5).
     """
-    if not stop_id.startswith("StopPoint:"):
-        stop_id = f"StopPoint:{stop_id}"
-
     ts = _siri_timestamp()
     msg_id = f"Msg-{uuid.uuid4().hex[:12]}"
 
@@ -323,13 +348,22 @@ def _parse_siri_response(xml_text: str) -> Dict[str, Any]:
         visits = []
         for visit in monitored_stops:
             item: Dict[str, Any] = {}
-            for tag in ("LineRef", "DirectionRef", "PublishedLineName",
-                        "DestinationRef", "DestinationName",
-                        "StopPointRef", "MonitoredCall/ArrivalPlatformNumber",
-                        "MonitoredCall/ArrivalTime",
-                        "MonitoredCall/ExpectedArrivalTime",
-                        "MonitoredCall/ArrivalStatus"):
-                parts = tag.split("/")
+            # Fields directly under MonitoredStopVisit or MonitoredVehicleJourney
+            for tag, path in [
+                ("LineRef", "MonitoredVehicleJourney/LineRef"),
+                ("DirectionName", "MonitoredVehicleJourney/DirectionName"),
+                ("PublishedLineName", "MonitoredVehicleJourney/PublishedLineName"),
+                ("DestinationRef", "MonitoredVehicleJourney/DestinationRef"),
+                ("DestinationName", "MonitoredVehicleJourney/DestinationName"),
+                ("VehicleMode", "MonitoredVehicleJourney/VehicleMode"),
+                # MonitoredCall fields
+                ("StopPointRef", "MonitoredVehicleJourney/MonitoredCall/StopPointRef"),
+                ("DestinationDisplay", "MonitoredVehicleJourney/MonitoredCall/DestinationDisplay"),
+                ("AimedDepartureTime", "MonitoredVehicleJourney/MonitoredCall/AimedDepartureTime"),
+                ("ExpectedDepartureTime", "MonitoredVehicleJourney/MonitoredCall/ExpectedDepartureTime"),
+                ("ArrivalStatus", "MonitoredVehicleJourney/MonitoredCall/ArrivalStatus"),
+            ]:
+                parts = path.split("/")
                 elem = visit
                 found = True
                 for p in parts:
@@ -338,7 +372,7 @@ def _parse_siri_response(xml_text: str) -> Dict[str, Any]:
                         found = False
                         break
                 if found:
-                    item[tag.replace("/", "_")] = elem.text
+                    item[tag] = elem.text
             visits.append(item)
         result["arrivals"] = visits
 
@@ -427,24 +461,21 @@ def search_stop(query: str) -> str:
 def get_stop_monitoring(stop_id: str, maximum_visits: int = 5) -> str:
     """Get real-time arrivals for a specific stop via raw XML (auth required).
 
-    The ``stop_id`` should be the full StopPoint identifier
-    (e.g. ``StopPoint:FR_NAOLIB:StopPlace:1134``).
-    Use ``search_stop`` to find it by name first.
+    The ``stop_id`` should be the raw stop identifier returned by ``search_stop``
+    (e.g. ``FR_NAOLIB:Quay:2687``). Use ``search_stop`` to find it by name first.
 
     Uses POST /anshar/services with a StopMonitoringRequest
     (requires NAOLIB_API_KEY). datasetId header is set to NAOLIBORG.
 
     Args:
-        stop_id: StopPoint identifier, with or without the 'StopPoint:' prefix.
+        stop_id: Raw stop ID (as returned by search_stop). No 'StopPoint:' prefix.
         maximum_visits: Maximum number of departures to return (default: 5).
     """
-    if not stop_id.startswith("StopPoint:"):
-        stop_id = f"StopPoint:{stop_id}"
-
     xml_req = build_stop_monitoring_request_xml(
         stop_id, maximum_visits=maximum_visits
     )
-    response_xml = _post_siri(xml_req, use_soap=False, require_auth=True)
+    # Try without auth first (staging accepts it, prod libre should too)
+    response_xml = _post_siri(xml_req, use_soap=False, require_auth=False)
 
     if "Error" in response_xml or "error" in response_xml[:200].lower():
         return response_xml
@@ -452,16 +483,29 @@ def get_stop_monitoring(stop_id: str, maximum_visits: int = 5) -> str:
     parsed = _parse_siri_response(response_xml)
 
     if "arrivals" in parsed and parsed["arrivals"]:
-        lines = [f"**Arrivals for** `{stop_id}`\n"]
+        lines = [f"**Prochains passages — {stop_id}**\n"]
         for visit in parsed["arrivals"]:
             line = visit.get("LineRef", "?")
-            dest = visit.get("DestinationName", visit.get("DestinationRef", "?"))
-            expected = visit.get("MonitoredCall_ExpectedArrivalTime", "?")
-            status = visit.get("MonitoredCall_ArrivalStatus", "?")
-            plat = visit.get("MonitoredCall_ArrivalPlatformNumber", "-")
+            line_name = visit.get("PublishedLineName", line)
+            dest = visit.get("DestinationDisplay") or visit.get("DestinationName", "?")
+            direction = visit.get("DirectionName", "")
+            mode = visit.get("VehicleMode", "")
+            expected = visit.get("ExpectedDepartureTime", "?")
+            aimed = visit.get("AimedDepartureTime", "?")
+            status = visit.get("ArrivalStatus", "?")
+            # Format times
+            exp_fmt = ""
+            if expected and expected != "?":
+                try:
+                    dt = datetime.fromisoformat(expected.replace("+02:00", "+02:00").replace("Z", "+00:00"))
+                    exp_fmt = dt.strftime("%H:%M")
+                except Exception:
+                    exp_fmt = expected
+            mode_icon = {"bus": "🚌", "tram": "🚊", "rail": "🚆"}.get(mode.lower(), "🚌")
+            status_icon = {"onTime": "✓", "early": "⚡", "delayed": "⏳", "cancelled": "❌"}.get(status.lower(), status)
             lines.append(
-                f"- **{line}** → {dest}  "
-                f"| Expected: {expected} | Platform: {plat} | Status: {status}"
+                f"{mode_icon} **{line_name}** {direction} → {dest}  "
+                f"| {exp_fmt} {status_icon}"
             )
         return "\n".join(lines)
 

@@ -567,7 +567,7 @@ wheels = [
 
 [[package]]
 name = "naolib-mcp"
-version = "0.2.7"
+version = "1.0.0"
 source = { editable = "." }
 dependencies = [
     { name = "httpx" },
