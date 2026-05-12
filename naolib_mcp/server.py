@@ -318,6 +318,67 @@ def _post_siri(
         return f"Request failed: {str(e)}"
 
 
+def _get_siri_lite(
+    service: str,
+    params: Optional[Dict[str, Any]] = None,
+    require_auth: bool = False,
+    timeout: float = 15.0,
+) -> str:
+    """Perform a SIRI Lite GET request (JSON).
+
+    SIRI Lite endpoints (from ITR manual):
+      /siri/2.0/situation-exchange.json
+      /siri/2.0/general-message.json
+      /siri/2.0/stop-monitoring.json
+      /siri/2.0/vehicle-monitoring.json
+      /siri/2.0/estimated-timetables.json
+      /siri/2.0/facility-monitoring.json
+      /siri/2.0/stoppoints-discovery.json
+      /siri/2.0/lines-discovery.json
+
+    Args:
+        service: SIRI Lite service name (e.g. 'situation-exchange').
+        params: Query parameters to include.
+        require_auth: Require API key.
+        timeout: Request timeout in seconds.
+
+    Returns:
+        Raw JSON response text, or an error string.
+    """
+    path = f"/siri/2.0/{service}.json"
+    url = f"{BASE_URL}{path}"
+    merged = (params or {}).copy()
+    merged["datasetId"] = DATASET_ID
+
+    if require_auth and API_KEY:
+        merged["api-key"] = API_KEY
+    elif require_auth and not API_KEY:
+        return (
+            "Error: API key required for this endpoint. "
+            "Set NAOLIB_API_KEY environment variable."
+        )
+
+    # Rate limit on libre (unauthenticated) endpoints
+    if not require_auth:
+        last = _LAST_REQUEST_TIME.get(path, 0)
+        elapsed = time.time() - last
+        if elapsed < LIBRE_RATE_LIMIT:
+            wait = LIBRE_RATE_LIMIT - elapsed
+            print(f"[naolib-mcp] Rate limit: waiting {wait:.1f}s before {path}")
+            time.sleep(wait)
+        _LAST_REQUEST_TIME[path] = time.time()
+
+    try:
+        with httpx.Client(timeout=timeout, follow_redirects=True) as client:
+            response = client.get(url, params=merged)
+            response.raise_for_status()
+            return response.text
+    except httpx.HTTPStatusError as e:
+        return f"HTTP {e.response.status_code}: {e.response.text[:500]}"
+    except Exception as e:
+        return f"Request failed: {str(e)}"
+
+
 def _parse_siri_response(xml_text: str) -> Dict[str, Any]:
     """Parse a SIRI XML response into a dict for readability."""
     try:
@@ -511,6 +572,51 @@ def get_stop_monitoring(stop_id: str, maximum_visits: int = 5) -> str:
 
     # Fallback
     return f"**Response:**\n```xml\n{response_xml[:1500]}\n```"
+
+
+@mcp.tool()
+def get_traffic_alerts() -> str:
+    """Get real-time traffic alerts and disruptions (SIRI Situation Exchange).
+
+    Returns current disruptions, incidents, and service alerts on the Naolib network.
+    Uses SIRI Lite GET /siri/2.0/situation-exchange.json (requires NAOLIB_API_KEY).
+    """
+    response_json = _get_siri_lite(
+        "situation-exchange",
+        require_auth=False,
+    )
+
+    if "Error" in response_json or "error" in response_json[:100].lower():
+        return response_json
+
+    try:
+        data = json.loads(response_json)
+    except (json.JSONDecodeError, ValueError):
+        if not response_json.strip():
+            return "✅ **Aucune perturbation en cours** sur le réseau Naolib."
+        return f"**Response:**\n```json\n{response_json[:1500]}\n```"
+
+    situations = data.get("situations", [])
+    if not situations:
+        return "✅ **Aucune perturbation en cours** sur le réseau Naolib."
+
+    lines = [f"🚨 **{len(situations)} perturbation(s)** sur le réseau Naolib\n"]
+    for s in situations[:10]:
+        severity = s.get("severity", "info")
+        icon = {"critical": "🔴", "high": "🟠", "medium": "🟡", "normal": "ℹ️"}.get(severity.lower(), "ℹ️")
+        summary = s.get("summary", s.get("description", "Pas de détail"))
+        lines_refs = s.get("lineRefs", [])
+        aff_lines = ", ".join(f"`{r}`" for r in lines_refs) if lines_refs else "tout le réseau"
+        valid = s.get("validUntil", "")
+        valid_str = f" — jusqu'à {valid[:16]}" if valid else ""
+        lines.append(f"{icon} **{summary}**")
+        if aff_lines:
+            lines.append(f"   ↳ Lignes affectées: {aff_lines}")
+        if valid_str:
+            lines.append(f"   ↳ Fin estimée{valid_str}")
+        lines.append("")
+
+    return "\n".join(lines).strip()
 
 
 def main():
