@@ -784,6 +784,178 @@ def get_estimated_timetables(line_ref: str) -> str:
     return "\n".join(lines_out).strip()
 
 
+@mcp.tool()
+def get_facility_status(stop_id: str = "") -> str:
+    """Get real-time status of facilities and equipment at a stop (SIRI Facility Monitoring).
+
+    Returns the operational status of elevators, escalators, ticket machines,
+    and other equipment at a given stop.
+
+    Uses SIRI Lite GET /siri/2.0/facility-monitoring.json.
+    Without a stop_id, returns the overall facility status of the network.
+
+    Args:
+        stop_id: Optional stop identifier to filter facilities (e.g. ``"StopPoint:BAB"``).
+    """
+    params = {}
+    if stop_id:
+        params["MonitoringRef"] = stop_id
+
+    response_json = _get_siri_lite(
+        "facility-monitoring",
+        params=params,
+        require_auth=False,
+    )
+
+    if "Error" in response_json or "error" in response_json[:100].lower():
+        return response_json
+
+    try:
+        data = json.loads(response_json)
+    except (json.JSONDecodeError, ValueError):
+        if not response_json.strip():
+            return f"🏗️ **Aucun équipement** en suivi pour `{stop_id}`." if stop_id else "🏗️ **Aucun équipement** en suivi sur le réseau Naolib."
+        return f"**Response:**\n```json\n{response_json[:1500]}\n```"
+
+    facilities = data.get("facilities", [])
+    if not facilities:
+        facilities = data.get("FacilityMonitoringDelivery", {}).get("Facilities", [])
+    if not facilities:
+        return f"🏗️ **Aucun équipement** en suivi" + (f" pour `{stop_id}`" if stop_id else " sur le réseau Naolib") + "."
+
+    lines_out = [f"🏗️ **{len(facilities)} équipement(s)**" + (f" — `{stop_id}`" if stop_id else " — réseau Naolib") + "\n"]
+    for fac in facilities[:20]:
+        fid = fac.get("facilityRef", "?")
+        ftype = fac.get("facilityType", "?")
+        status = fac.get("operationalStatus", fac.get("status", "UNKNOWN"))
+        icon = {"operational": "✅", "notAvailable": "❌", "unknown": "❓"}.get(status.lower(), "❓")
+        location = fac.get("equipmentLocation", "")
+        desc = fac.get("description", "")
+        lines_out.append(f"{icon} `{fid}` — {ftype}" + (f" @ {location}" if location else "") + (f": {desc}" if desc else ""))
+        lines_out.append("")
+
+    return "\n".join(lines_out).strip()
+
+
+@mcp.tool()
+def discover_stops(query: str = "") -> str:
+    """Discover available stop points via SIRI StopPointsDiscovery (SIRI Lite).
+
+    Returns all stop points available in the Naolib dataset, optionally filtered
+    by a search query.
+
+    Uses SIRI Lite GET /siri/2.0/stoppoints-discovery.json.
+
+    Note: For detailed stop searches with fuzzy matching, prefer ``search_stop()``.
+    This tool is best used without a query to list all available stop IDs,
+    or with a partial name to filter results.
+
+    Args:
+        query: Optional stop name filter (case-insensitive partial match).
+    """
+    params = {}
+    if query:
+        params["Text"] = query
+
+    response_json = _get_siri_lite(
+        "stoppoints-discovery",
+        params=params,
+        require_auth=False,
+    )
+
+    if "Error" in response_json or "error" in response_json[:100].lower():
+        return response_json
+
+    try:
+        data = json.loads(response_json)
+    except (json.JSONDecodeError, ValueError):
+        if not response_json.strip():
+            return "🛑 **Aucun arrêt trouvé** via SIRI StopPointsDiscovery."
+        return f"**Response:**\n```json\n{response_json[:1500]}\n```"
+
+    # SIRI Lite StopPointsDiscovery returns a list of StopPoint elements
+    stops = data.get("stopPoints", [])
+    if not stops:
+        stops = data.get("AnnotatedStopPointRef", [])
+    if not stops:
+        return f"🛑 **Aucun arrêt**" + (f" correspondant à '{query}'" if query else " disponible") + " via SIRI."
+
+    lines_out = [f"🛑 **{len(stops)} arrêt(s)**" + (f" — recherche: '{query}'" if query else " — tous") + "\n"]
+    for stop in stops[:30]:
+        sref = stop.get("StopPointRef", stop.get("stopPointRef", "?"))
+        name = stop.get("StopPointName", stop.get("stopPointName", stop.get("Name", "")))
+        lines_out.append(f"  • **{name}** → `{sref}`")
+    if len(stops) > 30:
+        lines_out.append(f"  _... et {len(stops) - 30} autres_")
+    return "\n".join(lines_out)
+
+
+@mcp.tool()
+def discover_lines(query: str = "") -> str:
+    """Discover available lines via SIRI LinesDiscovery (SIRI Lite).
+
+    Returns all public transport lines (tram, bus, etc.) available in the
+    Naolib dataset, optionally filtered by a search query.
+
+    Uses SIRI Lite GET /siri/2.0/lines-discovery.json.
+
+    Use the returned line IDs with ``get_vehicle_monitoring()`` or
+    ``get_estimated_timetables()``.
+
+    Args:
+        query: Optional line name or number filter (case-insensitive partial match).
+    """
+    params = {}
+    if query:
+        params["Text"] = query
+
+    response_json = _get_siri_lite(
+        "lines-discovery",
+        params=params,
+        require_auth=False,
+    )
+
+    if "Error" in response_json or "error" in response_json[:100].lower():
+        return response_json
+
+    try:
+        data = json.loads(response_json)
+    except (json.JSONDecodeError, ValueError):
+        if not response_json.strip():
+            return "🚌 **Aucune ligne trouvée** via SIRI LinesDiscovery."
+        return f"**Response:**\n```json\n{response_json[:1500]}\n```"
+
+    # SIRI Lite LinesDiscovery returns a list of Line elements
+    lines_list = data.get("lines", [])
+    if not lines_list:
+        lines_list = data.get("AnnotatedLineRef", [])
+    if not lines_list:
+        return f"🚌 **Aucune ligne**" + (f" correspondant à '{query}'" if query else " disponible") + " via SIRI."
+
+    # Group by transport mode if available
+    by_mode: Dict[str, List] = {}
+    for line in lines_list[:50]:
+        lref = line.get("LineRef", line.get("lineRef", "?"))
+        name = line.get("LineName", line.get("lineName", line.get("PublishedLineName", "")))
+        mode = line.get("TransportMode", line.get("mode", "inconnu"))
+        if mode not in by_mode:
+            by_mode[mode] = []
+        by_mode[mode].append((name, lref))
+
+    icon_map = {"tram": "🚊", "bus": "🚌", "rail": "🚆", "metro": "🚇", "ferry": "⛴️", "inconnu": "🚃"}
+    lines_out = [f"🚌 **{len(lines_list)} ligne(s)**" + (f" — recherche: '{query}'" if query else " — toutes") + "\n"]
+    for mode, items in by_mode.items():
+        icon = icon_map.get(mode.lower(), "🚃")
+        lines_out.append(f"{icon} **{mode.capitalize()}**")
+        for name, lref in items[:10]:
+            lines_out.append(f"  • **{name}** → `{lref}`")
+        if len(items) > 10:
+            lines_out.append(f"  _... et {len(items) - 10} autres {mode}_")
+        lines_out.append("")
+
+    return "\n".join(lines_out).strip()
+
+
 def main():
     mcp.run()
 
