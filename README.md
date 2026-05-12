@@ -1,3 +1,5 @@
+[![PyPI version](https://badge.fury.io/py/naolib-mcp.svg)](https://badge.fury.io/py/naolib-mcp)
+[![Build Status](https://github.com/alexandrerodenas/naolib-mcp/actions/workflows/publish.yml/badge.svg)](https://github.com/alexandrerodenas/naolib-mcp/actions)
 ![GitHub release (latest by date)](https://img.shields.io/github/v/release/alexandrerodenas/naolib-mcp)
 
 # Naolib MCP
@@ -7,6 +9,7 @@ Un serveur MCP pour obtenir les informations de trafic en temps réel de Naolib 
 ## Fonctionnalités
 - **Recherche d'arrêts** : Trouvez l'identifiant technique d'un arrêt à partir de son nom (avec recherche floue).
 - **Suivi en temps réel** : Obtenez les horaires de passage (arrivées/départs) pour un arrêt spécifique.
+- **Perturbations en temps réel** : Accédez aux alertes et incidents sur le réseau via SIRI Situation Exchange.
 - **Vérification du service** : Testez la disponibilité de l'API SIRI (raw XML et SOAP).
 - **Synchronisation Dynamique** : Mise à jour automatique du catalogue des arrêts via les données NeTEx de Nantes Métropole.
 - **Cache Intelligent** : Optimisation des appels API avec un cache interne pour réduire la latence.
@@ -98,15 +101,7 @@ Vérifie la disponibilité du service SIRI via XML brut (accès libre, rate limi
 Vérifie la disponibilité du service SIRI via SOAP (accès libre, rate limit 30s).
 
 ### `get_traffic_alerts`
-Obtenez les perturbations et incidents en temps réel sur le réseau Naolib (SIRI Situation Exchange).
-
-```
-get_traffic_alerts()
-→ 🚨 **2 perturbation(s)** sur le réseau Naolib
-  🔴 **Ligne A déviée — travaux** — Lignes affectées: `NAOLIBORG:Line:A`
-     ↳ Fin estimée — jusqu'à 2026-05-20
-  🟡 **Bus 27 — retards** — Lignes affectées: `NAOLIBORG:Line:27`
-```
+Obtenez les alertes et perturbations en temps réel sur le réseau Naolib (SIRI Situation Exchange).
 
 ## Protocole SIRI — notes techniques
 
