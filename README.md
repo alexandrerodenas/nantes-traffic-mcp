@@ -99,6 +99,17 @@ Vérifie la disponibilité du service SIRI via XML brut (accès libre, rate limi
 ### `check_api_status_soap`
 Vérifie la disponibilité du service SIRI via SOAP (accès libre, rate limit 30s).
 
+### `get_traffic_alerts`
+Obtenez les perturbations et incidents en temps réel sur le réseau Naolib (SIRI Situation Exchange).
+
+```
+get_traffic_alerts()
+→ 🚨 **2 perturbation(s)** sur le réseau Naolib
+  🔴 **Ligne A déviée — travaux** — Lignes affectées: `NAOLIBORG:Line:A`
+     ↳ Fin estimée — jusqu'à 2026-05-20
+  🟡 **Bus 27 — retards** — Lignes affectées: `NAOLIBORG:Line:27`
+```
+
 ## Protocole SIRI — notes techniques
 
 L'implémentation suit la spécification SIRI 2.0 avec les points d'accès Okina :
@@ -107,6 +118,8 @@ L'implémentation suit la spécification SIRI 2.0 avec les points d'accès Okina
 |--------|----------|------|-----------|
 | Raw XML | `/anshar/services` | Libre / `api-key` | 1 req / 30s (libre) |
 | SOAP | `/anshar/ws/siri` | Libre / `api-key` | 1 req / 30s (libre) |
+| SIRI Lite | `/siri/2.0/{service}.json` | Libre / `api-key` | 1 req / 30s (libre) |
 
 Les requêtes utilisent le header HTTP `datasetId: NAOLIBORG`.
 Les structures XML respectent le format `<Siri><ServiceRequest>...</ServiceRequest></Siri>`.
+Les endpoints SIRI Lite (GET/JSON) sont documentés dans le manuel ITR Okina v16 (Chap. 15).
