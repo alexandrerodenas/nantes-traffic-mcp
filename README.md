@@ -1,5 +1,3 @@
-[![PyPI version](https://badge.fury.io/py/naolib-mcp.svg)](https://badge.fury.io/py/naolib-mcp)
-[![Build Status](https://github.com/alexandrerodenas/naolib-mcp/actions/workflows/publish.yml/badge.svg)](https://github.com/alexandrerodenas/naolib-mcp/actions)
 ![GitHub release (latest by date)](https://img.shields.io/github/v/release/alexandrerodenas/naolib-mcp)
 
 # Naolib MCP
