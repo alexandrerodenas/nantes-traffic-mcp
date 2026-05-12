@@ -619,6 +619,56 @@ def get_traffic_alerts() -> str:
     return "\n".join(lines).strip()
 
 
+@mcp.tool()
+def get_general_messages() -> str:
+    """Get general messages and service announcements (SIRI General Message).
+
+    Returns informational messages, service notices, and announcements
+    on the Naolib network (e.g. planned works, service changes).
+    Uses SIRI Lite GET /siri/2.0/general-message.json.
+    """
+    response_json = _get_siri_lite(
+        "general-message",
+        require_auth=False,
+    )
+
+    if "Error" in response_json or "error" in response_json[:100].lower():
+        return response_json
+
+    try:
+        data = json.loads(response_json)
+    except (json.JSONDecodeError, ValueError):
+        if not response_json.strip():
+            return "📢 **Aucun message général** en cours sur le réseau Naolib."
+        return f"**Response:**\n```json\n{response_json[:1500]}\n```"
+
+    # SIRI Lite General Message wraps under a "messages" or "GeneralMessageDelivery" key
+    messages = data.get("messages", [])
+    if not messages:
+        messages = data.get("generalMessages", [])
+    if not messages:
+        return "📢 **Aucun message général** en cours sur le réseau Naolib."
+
+    lines = [f"📢 **{len(messages)} message(s)** sur le réseau Naolib\n"]
+    for msg in messages[:10]:
+        summary = msg.get("summary", msg.get("messageText", msg.get("description", "Pas de détail")))
+        line_refs = msg.get("lineRefs", [])
+        channels = msg.get("infoChannels", [])
+        valid = msg.get("validUntil", "")
+        valid_str = f" — jusqu'à {valid[:16]}" if valid else ""
+
+        lines.append(f"📋 **{summary}**")
+        if line_refs:
+            lines.append(f"   ↳ Lignes: {', '.join(str(r) for r in line_refs)}")
+        if channels:
+            lines.append(f"   ↳ Type: {', '.join(str(c) for c in channels)}")
+        if valid_str:
+            lines.append(f"   ↳ Fin estimée{valid_str}")
+        lines.append("")
+
+    return "\n".join(lines).strip()
+
+
 def main():
     mcp.run()
 
