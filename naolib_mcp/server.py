@@ -669,6 +669,121 @@ def get_general_messages() -> str:
     return "\n".join(lines).strip()
 
 
+@mcp.tool()
+def get_vehicle_monitoring(line_ref: str) -> str:
+    """Get real-time vehicle positions on a specific line (SIRI Vehicle Monitoring).
+
+    Returns the live GPS positions of all vehicles running on the given line.
+    Use ``discover_lines()`` to find valid line identifiers.
+
+    Uses SIRI Lite GET /siri/2.0/vehicle-monitoring.json (requires NAOLIB_API_KEY).
+
+    Args:
+        line_ref: Line identifier (e.g. ``"Line:A"`` or ``"FR_NAOLIB:Line:TM:A"``).
+    """
+    response_json = _get_siri_lite(
+        "vehicle-monitoring",
+        params={"LineRef": line_ref},
+        require_auth=True,
+    )
+
+    if "Error" in response_json or "error" in response_json[:100].lower():
+        return response_json
+
+    try:
+        data = json.loads(response_json)
+    except (json.JSONDecodeError, ValueError):
+        if not response_json.strip():
+            return f"🚍 **Aucun véhicule en cours** sur la ligne `{line_ref}`."
+        return f"**Response:**\n```json\n{response_json[:1500]}\n```"
+
+    vehicles = data.get("vehicles", [])
+    if not vehicles:
+        return f"🚍 **Aucun véhicule en cours** sur la ligne `{line_ref}`."
+
+    lines_out = [f"🚍 **{len(vehicles)} véhicule(s)** sur `{line_ref}`\n"]
+    for v in vehicles[:20]:
+        vid = v.get("vehicleId", "?")
+        lat = v.get("latitude", "?")
+        lon = v.get("longitude", "?")
+        bearing = v.get("bearing", "")
+        speed = v.get("speed", "")
+        dest = v.get("destinationName", v.get("destinationRef", ""))
+        valid = v.get("validUntilTime", "")
+        valid_str = f" — expire {valid[11:16]}" if valid else ""
+        lines_out.append(f"🚌 `{vid}` → {dest}{valid_str}")
+        if lat and lat != "?":
+            lines_out.append(f"   📍 {lat}, {lon}" + (f" | cap: {bearing}°" if bearing else "") + (f" | {speed}" if speed else ""))
+        lines_out.append("")
+
+    return "\n".join(lines_out).strip()
+
+
+@mcp.tool()
+def get_estimated_timetables(line_ref: str) -> str:
+    """Get estimated arrival/departure times for a specific line (SIRI ET).
+
+    Returns the expected arrival and departure times for all stops on a given line.
+    Use ``discover_lines()`` to find valid line identifiers.
+
+    Uses SIRI Lite GET /siri/2.0/estimated-timetables.json (requires NAOLIB_API_KEY).
+
+    Args:
+        line_ref: Line identifier (e.g. ``"Line:A"`` or ``"FR_NAOLIB:Line:TM:A"``).
+    """
+    response_json = _get_siri_lite(
+        "estimated-timetables",
+        params={"LineRef": line_ref},
+        require_auth=True,
+    )
+
+    if "Error" in response_json or "error" in response_json[:100].lower():
+        return response_json
+
+    try:
+        data = json.loads(response_json)
+    except (json.JSONDecodeError, ValueError):
+        if not response_json.strip():
+            return f"📅 **Aucun horaire estimé** disponible pour la ligne `{line_ref}`."
+        return f"**Response:**\n```json\n{response_json[:1500]}\n```"
+
+    etd = data.get("estimatedTimetables", [])
+    if not etd:
+        etd = data.get("etd", [])
+    if not etd:
+        return f"📅 **Aucun horaire estimé** disponible pour la ligne `{line_ref}`."
+
+    lines_out = [f"📅 **Horaires estimés — `{line_ref}`**\n"]
+    shown_stops = 0
+    for entry in etd[:15]:
+        stop_ref = entry.get("stopPointRef", entry.get("stopRef", "?"))
+        dest = entry.get("destinationText", entry.get("lineRef", ""))
+        visits = entry.get("estimatedCalls", entry.get("calls", []))
+        if not visits:
+            continue
+        lines_out.append(f"🛑 **{stop_ref}** (→ {dest})")
+        for call in visits[:3]:
+            exp = call.get("expectedArrivalTime", call.get("expectedDepartureTime", "?"))
+            aimed = call.get("aimedArrivalTime", call.get("aimedDepartureTime", ""))
+            if exp and exp != "?":
+                try:
+                    dt = datetime.fromisoformat(exp.replace("Z", "+00:00"))
+                    exp_fmt = dt.strftime("%H:%M")
+                except Exception:
+                    exp_fmt = exp[11:16]
+            else:
+                exp_fmt = aimed[11:16] if aimed and aimed != "?" else "?"
+            veh_ref = call.get("vehicleAtStop", call.get("vehicleJourneyRef", ""))
+            lines_out.append(f"   → {exp_fmt}" + (f" (prévu {aimed[11:16]})" if aimed and aimed != "?" and aimed[11:16] != exp_fmt else "") + (f" | {veh_ref}" if veh_ref else ""))
+        shown_stops += 1
+        lines_out.append("")
+
+    if shown_stops == 0:
+        return f"📅 **Aucun horaire estimé** disponible pour la ligne `{line_ref}`."
+
+    return "\n".join(lines_out).strip()
+
+
 def main():
     mcp.run()
 
